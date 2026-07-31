@@ -76,12 +76,12 @@ jobs:
       - name: Create and push manifest list
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
-          REF_NAME: ${{ github.ref_name }}
+          VERSION: ${{ steps.meta.outputs.version }}
         run: |
           args=()
           while IFS= read -r tag; do
             [ -n "$tag" ] && args+=(-t "$tag")
           done <<< "$TAGS"
           docker buildx imagetools create "${args[@]}" \
-            "${REGISTRY}/${IMAGE_NAME}:${REF_NAME}-amd64" \
-            "${REGISTRY}/${IMAGE_NAME}:${REF_NAME}-arm64"
+            "${REGISTRY}/${IMAGE_NAME}:${VERSION}-amd64" \
+            "${REGISTRY}/${IMAGE_NAME}:${VERSION}-arm64"
