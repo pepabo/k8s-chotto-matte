@@ -30,3 +30,15 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+/k8s-chotto-matte
+*.exe
+*.test
+*.out
+dev.config.toml
+
+# editor/IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store

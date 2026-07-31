@@ -1,0 +1,35 @@
+version: "2"
+
+linters:
+  default: all
+  disable:
+    - wsl
+    - gomodguard
+  enable:
+    - wsl_v5
+    - gomodguard_v2
+  settings:
+    depguard:
+      rules:
+        main:
+          files:
+            - $all
+          allow:
+            - $gostd
+            - github.com/pepabo/k8s-chotto-matte
+            - github.com/BurntSushi/toml
+            - github.com/spf13/cobra
+            - github.com/Unleash/unleash-client-go/v4
+    gomodguard_v2:
+      allowed:
+        - module: github.com/BurntSushi/toml
+        - module: github.com/spf13/cobra
+        - module: github.com/Unleash/unleash-client-go/v4
+    exhaustruct:
+      exclude:
+        - '^github\.com/spf13/cobra\.Command$'
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
