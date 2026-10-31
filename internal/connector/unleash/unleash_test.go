@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -129,6 +130,36 @@ func TestConnector_Check_TimesOutWhenServerUnreachable(t *testing.T) {
 	_, err := conn.Check(context.Background())
 	if err == nil {
 		t.Fatalf("Check() error = nil, want error")
+	}
+}
+
+func TestConnector_Check_DoesNotLeakGoroutinesWhileUnready(t *testing.T) {
+	t.Parallel()
+
+	cfg := newConfig("noleak", "http://127.0.0.1:1")
+	cfg.ReadyTimeout = 10 * time.Millisecond
+
+	conn := newTestConnector(t, cfg)
+
+	_, err := conn.Check(context.Background())
+	if err == nil {
+		t.Fatalf("Check() error = nil, want error")
+	}
+
+	before := runtime.NumGoroutine()
+
+	for range 50 {
+		_, err = conn.Check(context.Background())
+		if err == nil {
+			t.Fatalf("Check() error = nil, want error")
+		}
+	}
+
+	// Other parallel tests may start or stop goroutines concurrently, so
+	// allow some slack; a per-Check leak would add at least 50.
+	const slack = 20
+	if after := runtime.NumGoroutine(); after > before+slack {
+		t.Errorf("goroutines grew from %d to %d across 50 unready Checks", before, after)
 	}
 }
 

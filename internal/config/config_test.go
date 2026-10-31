@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"errors"
 	"maps"
 	"os"
 	"path/filepath"
@@ -43,6 +44,7 @@ func loadTestCases() map[string]loadTestCase {
 	maps.Copy(cases, checkIdentityLoadTestCases())
 	maps.Copy(cases, checkLimitLoadTestCases())
 	maps.Copy(cases, unleashFieldLoadTestCases())
+	maps.Copy(cases, unleashURLLoadTestCases())
 
 	return cases
 }
@@ -210,24 +212,9 @@ timeout_ms = 2000
 			wantErr:  config.ErrTokenEnvMissing,
 		},
 		"token set in toml is rejected": {
-			contents: validCheckTOML + "\n[checks.unleash]\ntoken = \"leaked\"\n",
+			contents: validCheckTOML + "  token = \"leaked\"\n",
 			env:      map[string]string{primaryEnvVar: testToken},
 			wantErr:  config.ErrTokenInTOML,
-		},
-		"missing unleash url": {
-			contents: `
-[[checks]]
-name = "primary"
-type = "unleash"
-interval_ms = 5000
-success_threshold = 1
-timeout_ms = 2000
-
-  [checks.unleash]
-  flag_name = "my-flag"
-`,
-			env:     map[string]string{primaryEnvVar: testToken},
-			wantErr: config.ErrURLMissing,
 		},
 		"missing unleash flag name": {
 			contents: `
@@ -245,6 +232,54 @@ timeout_ms = 2000
 			wantErr: config.ErrFlagNameMissing,
 		},
 	}
+}
+
+func unleashURLLoadTestCases() map[string]loadTestCase {
+	env := map[string]string{primaryEnvVar: testToken}
+
+	return map[string]loadTestCase{
+		"missing unleash url": {
+			contents: checkTOMLWithURLLine(""),
+			env:      env,
+			wantErr:  config.ErrURLMissing,
+		},
+		"unleash url without scheme": {
+			contents: checkTOMLWithURLLine(`url = "unleash.example.com"`),
+			env:      env,
+			wantErr:  config.ErrURLInvalid,
+		},
+		"unleash url with unsupported scheme": {
+			contents: checkTOMLWithURLLine(`url = "ftp://unleash.example.com"`),
+			env:      env,
+			wantErr:  config.ErrURLInvalid,
+		},
+		"unleash url without host": {
+			contents: checkTOMLWithURLLine(`url = "https:///api"`),
+			env:      env,
+			wantErr:  config.ErrURLInvalid,
+		},
+		"plain http unleash url is accepted": {
+			contents: checkTOMLWithURLLine(`url = "http://unleash.internal"`),
+			env:      env,
+			wantErr:  nil,
+		},
+	}
+}
+
+// checkTOMLWithURLLine returns a single valid check whose [checks.unleash]
+// table contains urlLine verbatim in place of the url key.
+func checkTOMLWithURLLine(urlLine string) string {
+	return `
+[[checks]]
+name = "primary"
+type = "unleash"
+interval_ms = 5000
+success_threshold = 1
+timeout_ms = 2000
+
+  [checks.unleash]
+  flag_name = "my-flag"
+  ` + urlLine + "\n"
 }
 
 func writeConfig(t *testing.T, contents string) string {
@@ -283,6 +318,10 @@ func runLoadTestCase(t *testing.T, testCase loadTestCase) {
 	if testCase.wantErr != nil {
 		if err == nil {
 			t.Fatalf("Load() error = nil, want error wrapping %v", testCase.wantErr)
+		}
+
+		if !errors.Is(err, testCase.wantErr) {
+			t.Fatalf("Load() error = %v, want error wrapping %v", err, testCase.wantErr)
 		}
 
 		return

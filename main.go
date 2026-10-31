@@ -59,6 +59,12 @@ func run(configPath string, out io.Writer) error {
 
 	logger.Info("config loaded", "config", cfg)
 
+	for _, check := range cfg.Checks {
+		if check.Unleash != nil && check.Unleash.IsPlaintext() {
+			logger.Warn("unleash url uses plain http; the API token is sent unencrypted", "name", check.Name)
+		}
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

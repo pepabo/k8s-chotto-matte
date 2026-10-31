@@ -40,4 +40,4 @@ make lint    # lint
 make format  # フォーマット
 ```
 
-Go 1.26以降が必要です（`mise.toml` 参照）。
+Go 1.27以降が必要です（`mise.toml` 参照）。
