@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -43,6 +44,7 @@ var (
 	ErrTokenInTOML          = errors.New("checks[].unleash.token must not be set in the TOML config")
 	ErrTokenEnvMissing      = errors.New("unleash token environment variable is required")
 	ErrURLMissing           = errors.New("checks[].unleash.url must be set")
+	ErrURLInvalid           = errors.New("checks[].unleash.url must be an absolute http or https URL")
 	ErrFlagNameMissing      = errors.New("checks[].unleash.flag_name must be set")
 )
 
@@ -181,6 +183,14 @@ func (c UnleashConfig) LogValue() slog.Value {
 	)
 }
 
+// IsPlaintext reports whether the Unleash URL uses plain HTTP, in which case
+// the API token is sent unencrypted.
+func (c UnleashConfig) IsPlaintext() bool {
+	parsed, err := url.Parse(c.URL)
+
+	return err == nil && parsed.Scheme == "http"
+}
+
 // Load reads the TOML config at path, resolves each check's secrets from
 // the environment, and validates the result.
 func Load(path string) (*Config, error) {
@@ -275,8 +285,26 @@ func (c *CheckConfig) resolveAndValidateUnleash() error {
 		return ErrURLMissing
 	}
 
+	err := validateUnleashURL(c.Unleash.URL)
+	if err != nil {
+		return err
+	}
+
 	if c.Unleash.FlagName == "" {
 		return ErrFlagNameMissing
+	}
+
+	return nil
+}
+
+func validateUnleashURL(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrURLInvalid, err)
+	}
+
+	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return fmt.Errorf("%w: %q", ErrURLInvalid, rawURL)
 	}
 
 	return nil

@@ -5,9 +5,11 @@ linters:
   disable:
     - wsl
     - gomodguard
+    - exhaustruct
   enable:
     - wsl_v5
     - gomodguard_v2
+    - exhaustruct_v5
   settings:
     depguard:
       rules:
@@ -19,15 +21,18 @@ linters:
             - github.com/pepabo/k8s-chotto-matte
             - github.com/BurntSushi/toml
             - github.com/spf13/cobra
-            - github.com/Unleash/unleash-client-go/v4
+            - github.com/Unleash/unleash-go-sdk/v6
     gomodguard_v2:
       allowed:
         - module: github.com/BurntSushi/toml
         - module: github.com/spf13/cobra
-        - module: github.com/Unleash/unleash-client-go/v4
-    exhaustruct:
-      exclude:
+        - module: github.com/Unleash/unleash-go-sdk/v6
+    exhaustruct_v5:
+      ignore-patterns:
         - '^github\.com/spf13/cobra\.Command$'
+      allow-empty-patterns:
+        # Zero-valued options mean "use the client's defaults".
+        - '^github\.com/Unleash/unleash-go-sdk/v6\.FeatureOptions$'
 
 formatters:
   enable:

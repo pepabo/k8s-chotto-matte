@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	unleashclient "github.com/Unleash/unleash-client-go/v4"
+	unleashclient "github.com/Unleash/unleash-go-sdk/v6"
 )
 
 // ErrSyncFailed wraps the error from the connector's most recent failed
@@ -74,15 +74,8 @@ func (c *Connector) Check(ctx context.Context) (bool, error) {
 	checkCtx, cancel := context.WithTimeout(ctx, c.cfg.ReadyTimeout)
 	defer cancel()
 
-	readyCh := make(chan struct{})
-
-	go func() {
-		c.client.WaitForReady()
-		close(readyCh)
-	}()
-
 	select {
-	case <-readyCh:
+	case <-c.listener.ready:
 	case <-checkCtx.Done():
 		return false, fmt.Errorf("waiting for unleash sync: %w", checkCtx.Err())
 	}
@@ -92,7 +85,7 @@ func (c *Connector) Check(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("%w: %w", ErrSyncFailed, syncErr)
 	}
 
-	return c.client.IsEnabled(c.cfg.FlagName) == c.cfg.ExpectedValue, nil
+	return c.client.IsEnabled(c.cfg.FlagName, unleashclient.FeatureOptions{}) == c.cfg.ExpectedValue, nil
 }
 
 // Close stops the connector's background sync with the Unleash server.
@@ -105,17 +98,25 @@ func (c *Connector) Close() error {
 	return nil
 }
 
-// listener implements the unleash-client-go ErrorListener and
-// RepositoryListener interfaces to track the most recent sync error. The
-// client library drains these callbacks on its own goroutine, so listener
-// only needs to be safe for concurrent access.
+// listener implements the unleash-go-sdk ErrorListener and
+// RepositoryListener interfaces to track the most recent sync error and
+// whether the first sync has completed. The client library drains these
+// callbacks on its own goroutine, so listener only needs to be safe for
+// concurrent access.
+//
+// Readiness is tracked here rather than via Client.WaitForReady so that
+// Check never has to spawn a goroutine that blocks forever (and leaks)
+// while the Unleash server is unreachable.
 type listener struct {
 	mu  sync.Mutex
 	err error
+
+	ready     chan struct{}
+	readyOnce sync.Once
 }
 
 func newListener() *listener {
-	return &listener{mu: sync.Mutex{}, err: nil}
+	return &listener{mu: sync.Mutex{}, err: nil, ready: make(chan struct{}), readyOnce: sync.Once{}}
 }
 
 func (l *listener) OnError(err error) {
@@ -132,6 +133,8 @@ func (l *listener) OnReady() {
 	defer l.mu.Unlock()
 
 	l.err = nil
+
+	l.readyOnce.Do(func() { close(l.ready) })
 }
 
 func (l *listener) OnUpdate() {

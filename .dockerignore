@@ -1,0 +1,7 @@
+.git
+.github
+/k8s-chotto-matte
+dev.config.toml
+.env
+*.test
+*.out
